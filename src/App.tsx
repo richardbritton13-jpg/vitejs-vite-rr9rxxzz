@@ -1,23 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+
+interface Athlete {
+  id: number;
+  federation: string;
+  contactEmail: string;
+  name: string;
+  photoUrl: string | null;
+  dob: string;
+  age: string;
+  ageCategory: string;
+  height: string;
+  gender: string;
+  sport: string;
+  level: string;
+  event: string;
+  experience: string;
+  pb: string;
+  coach: string;
+  location: string;
+  travel: string;
+  tournaments: string;
+  conditioning: string;
+  support: string;
+  frequency: string;
+  notes: string;
+  hasMedicalIssue: boolean;
+  rawDate: string;
+}
 
 export default function App() {
-  const [data, setData] = useState([]);
+  const [data, setData] = useState<Athlete[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSport, setFilterSport] = useState('All');
   const [filterAge, setFilterAge] = useState('All');
   const [sheetUrl, setSheetUrl] = useState('');
   const [error, setError] = useState('');
-  const [selectedAthlete, setSelectedAthlete] = useState(null); // State for the modal
+  const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null);
 
-  // A robust CSV parser to handle commas inside quoted text (like Google Forms generates)
-  const parseCSV = (str) => {
-    const arr = [];
+  const parseCSV = (str: string): string[][] => {
+    const arr: string[][] = [];
     let quote = false;
     let row = 0;
     let col = 0;
     for (let c = 0; c < str.length; c++) {
-      let cc = str[c], nc = str[c + 1];
+      const cc = str[c], nc = str[c + 1];
       arr[row] = arr[row] || [];
       arr[row][col] = arr[row][col] || '';
       if (cc === '"' && quote && nc === '"') { arr[row][col] += cc; ++c; continue; }
@@ -31,25 +58,23 @@ export default function App() {
     return arr;
   };
 
-  // Helper function to format Google Drive links into embeddable image URLs
-  const formatImageUrl = (url) => {
+  const formatImageUrl = (url: string): string | null => {
     if (!url) return null;
-    let id = null;
+    let id: string | null = null;
     if (url.includes('id=')) {
       id = url.split('id=')[1].split('&')[0];
     } else if (url.includes('/d/')) {
       const match = url.match(/\/d\/(.*?)\//);
       if (match && match[1]) id = match[1];
     }
-    
+
     if (id) {
-      // Using the thumbnail API often bypasses strict cross-origin display rules
       return `https://drive.google.com/thumbnail?id=${id}&sz=w800`;
     }
     return url;
   };
 
-  const getAgeCategory = (ageStr) => {
+  const getAgeCategory = (ageStr: string): string => {
     const age = parseInt(ageStr);
     if (isNaN(age)) return "Unknown";
     if (age < 18) return "U18";
@@ -57,48 +82,46 @@ export default function App() {
     return "Senior";
   };
 
-  const checkMedicalIssue = (notes, support) => {
+  const checkMedicalIssue = (notes: string, support: string): boolean => {
     const combined = `${notes} ${support}`.toLowerCase();
     const keywords = ['injury', 'pain', 'surgery', 'rehab', 'sprain', 'tear', 'medical', 'asthma', 'hamstring', 'knee', 'ankle'];
     return keywords.some(kw => combined.includes(kw));
   };
 
-  const processData = (csvText) => {
+  const processData = (csvText: string): Athlete[] => {
     const parsed = parseCSV(csvText);
     if (parsed.length < 2) return [];
-    
+
     const headers = parsed[0].map(h => h.toLowerCase());
     const dataRows = parsed.slice(1).filter(r => r.length > 1 && r[0].trim() !== "");
-    
-    // Find prefixes for multi-athlete rows (e.g., "athlete 1: ", "athlete 2: ")
-    const prefixes = [];
+
+    const prefixes: string[] = [];
     headers.forEach(h => {
       if (h.includes('full name') && !h.includes('coach')) {
         const prefix = h.split('full name')[0];
         if (!prefixes.includes(prefix)) prefixes.push(prefix);
       }
     });
-    if (prefixes.length === 0) prefixes.push(''); // Fallback if no specific prefix
+    if (prefixes.length === 0) prefixes.push('');
 
     const idxFederation = headers.findIndex(h => h.includes("federation name"));
     const idxContact = headers.findIndex(h => h.includes("contact person email"));
 
-    const allAthletes = [];
+    const allAthletes: Athlete[] = [];
     let globalId = 0;
 
     dataRows.forEach((row) => {
-      const getVal = (idx, fallback = "N/A") => (idx !== -1 && row[idx]) ? row[idx].trim() : fallback;
+      const getVal = (idx: number, fallback = "N/A"): string => (idx !== -1 && row[idx]) ? row[idx].trim() : fallback;
       const federation = getVal(idxFederation, "Unknown Federation");
       const contactEmail = getVal(idxContact, "No Email");
-      const rawDate = row[0];
 
       prefixes.forEach(prefix => {
-        const findIndex = (keyword) => headers.findIndex(h => h.startsWith(prefix) && h.includes(keyword.toLowerCase()));
+        const findIndex = (keyword: string): number => headers.findIndex(h => h.startsWith(prefix) && h.includes(keyword.toLowerCase()));
 
         const idxName = findIndex("full name");
         const name = getVal(idxName, "");
 
-        if (!name || name === "N/A") return; // Skip if this slot is empty
+        if (!name || name === "N/A") return;
 
         const age = getVal(findIndex("current age"));
         const notes = getVal(findIndex("please describe"));
@@ -129,7 +152,7 @@ export default function App() {
           frequency: getVal(findIndex("frequency of recent")),
           notes,
           hasMedicalIssue: checkMedicalIssue(notes, support),
-          rawDate
+          rawDate: row[0]
         });
       });
     });
@@ -138,7 +161,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Pre-loading based on the latest snippet you shared to ensure it works instantly
     const mockUploadedData = `Timestamp,Email Address,Federation Name,Contact Person Email Address,Athlete 1: Full Name,Athlete 1: Upload a recent competition photo,Athlete 1: Date of Birth,Athlete 1: Current Age,Athlete 1: Height,Athlete 1: Gender Category,Athlete 1: Primary Sport,Athlete 1: Level of Participation,Athlete 1: Primary Event/Discipline/Team,Athlete 1: Category/Weight Class,"Athlete 1: Position/Speciality",Athlete 1: Level of Experience,"Athlete 1: Personal Best/Recent Top Result",Athlete 1: Current Coach's Full Name,"Where is the athlete currently training location?",Athlete 1: Availability for International Travel,Athlete 1: Possible Tournament/Competition Selection,Athlete 1: Other Tournament/Competition,Athlete 1: Rate the athlete's current physical conditioning level.,"Athlete 1: Please specify any specific support requirements",Athlete 1: Indicate the frequency of recent participation,Athlete 1: Please describe,Athlete 2: Full Name,Athlete 2: Upload a recent competition photo,Athlete 2: Date of Birth,Athlete 2: Current Age,Athlete 2: Height,Athlete 2: Gender Category,Athlete 2: Primary Sport,Athlete 2: Level of Participation,Athlete 2: Primary Event/Discipline/Team,Athlete 2: Category/Weight Class,"Athlete 2: Position/Speciality",Athlete 2: Level of Experience,"Athlete 2: Personal Best/Recent Top Result",Athlete 2: Current Coach's Full Name,"Where is the athlete currently training location?",Athlete 2: Availability for International Travel,Athlete 2: Possible Tournament/Competition Selection,Athlete 2: Other Tournament/Competition,Athlete 2: Rate the athlete's current physical conditioning level.,"Athlete 2: Please specify any specific support requirements",Athlete 2: Indicate the frequency of recent participation,Athlete 2: Please describe
 5/16/2026 21:05:37,lca@mf.worldathletics.org,St. Lucia Athletics Association,dora@example.com,Destinee Cenac,https://drive.google.com/open?id=1aPEAlzJwDlXJ_hxyDYnYQRnZz_aX67TS,2/27/2010,16,6 ft,Female,Field Events,Approaching,High Jump,,High Jump,1-3 years,High Jump: 1.72 m (April 2026),Lenyn Leonce,Saint Lucia,Fully available,Regional Championships,N/A,6,"supplements, stipend and transportation",1-2 competitions,"N/A",Jady Emmanuel,https://drive.google.com/open?id=1_sg-C42l9gg1NO7b1kcCngcv3kFHQuX6,3/24/2009,17,5 ft 8,Female,Track,Approaching,100m and 200m,,,7-10 years,,Denise Herman,"Saint Lucia, Choiseul Secondary",Fully available,"Regional Championships, Continental Games",,7,N/A,1-2 competitions,2nd Hamstring Injury
 5/16/2026 21:05:38,test@worldathletics.org,St. Lucia Athletics Association,test@example.com,Julien Alfred,,6/10/2001,24,5 ft 7,Female,Track,Elite,100m and 200m,,,10+ years,"100m: 10.72s",Edrick Floreal,"Texas, USA",Fully available,Olympics,,10,N/A,5+ competitions,None`;
@@ -159,14 +181,18 @@ export default function App() {
       const athletes = processData(csvText);
       setData(athletes);
     } catch (err) {
-      setError(err.message);
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unknown error occurred');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const filteredData = data.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           item.event.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSport = filterSport === 'All' || item.sport.includes(filterSport);
     const matchesAge = filterAge === 'All' || item.ageCategory === filterAge;
@@ -187,19 +213,19 @@ export default function App() {
             </h1>
             <p className="text-gray-300 mt-1">Manage and view athlete profiles and form submissions.</p>
           </div>
-          
+
           {/* Controls Area */}
           <div className="space-y-4">
             {/* Live Data Input */}
             <div className="flex flex-col sm:flex-row gap-3">
-              <input 
-                type="text" 
-                placeholder="Paste Google Sheet Published CSV URL to load live data..." 
+              <input
+                type="text"
+                placeholder="Paste Google Sheet Published CSV URL to load live data..."
                 value={sheetUrl}
                 onChange={(e) => setSheetUrl(e.target.value)}
                 className="flex-grow px-4 py-2.5 bg-white text-gray-900 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500"
               />
-              <button 
+              <button
                 onClick={handleFetchUrl}
                 className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded uppercase tracking-wide transition-colors whitespace-nowrap shadow-sm"
               >
@@ -214,16 +240,16 @@ export default function App() {
                 <svg className="w-5 h-5 absolute left-3 top-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                 </svg>
-                <input 
-                  type="text" 
-                  placeholder="Search athletes by name or event..." 
+                <input
+                  type="text"
+                  placeholder="Search athletes by name or event..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-white text-gray-900 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
               <div className="flex sm:w-1/3 gap-2">
-                <select 
+                <select
                   value={filterSport}
                   onChange={(e) => setFilterSport(e.target.value)}
                   className="w-1/2 px-4 py-2.5 bg-white text-gray-900 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
@@ -232,7 +258,7 @@ export default function App() {
                     <option key={sport} value={sport}>{sport}</option>
                   ))}
                 </select>
-                <select 
+                <select
                   value={filterAge}
                   onChange={(e) => setFilterAge(e.target.value)}
                   className="w-1/2 px-4 py-2.5 bg-white text-gray-900 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
@@ -258,15 +284,15 @@ export default function App() {
             {filteredData.length > 0 ? (
               filteredData.map((athlete) => (
                 <div key={athlete.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col h-full group cursor-pointer" onClick={() => setSelectedAthlete(athlete)}>
-                  
+
                   {/* Photo Area */}
                   <div className="h-48 w-full bg-slate-100 relative overflow-hidden border-b border-slate-100">
                     {athlete.photoUrl && athlete.photoUrl !== 'N/A' ? (
-                      <img 
-                        src={athlete.photoUrl} 
-                        alt={athlete.name} 
+                      <img
+                        src={athlete.photoUrl}
+                        alt={athlete.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        onError={(e) => { e.target.style.display = 'none'; }} // Fallback if image fails
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-300">
@@ -275,7 +301,7 @@ export default function App() {
                         </svg>
                       </div>
                     )}
-                    
+
                     {/* Medical Badge */}
                     {athlete.hasMedicalIssue && (
                       <div className="absolute top-3 left-3 bg-red-600 text-white px-2.5 py-1 rounded-md text-xs font-bold shadow-sm flex items-center gap-1 z-10">
@@ -299,7 +325,7 @@ export default function App() {
                         {athlete.ageCategory}
                       </span>
                     </div>
-                    
+
                     <p className="text-sm text-slate-500 mb-4">{athlete.gender} • Age {athlete.age}</p>
 
                     <div className="space-y-2 mt-auto">
@@ -311,13 +337,13 @@ export default function App() {
                         <span className="font-medium text-slate-700 w-16">Coach:</span>
                         <span className="text-slate-600 truncate">{athlete.coach}</span>
                       </div>
-                      
+
                       {/* Mini Conditioning Bar */}
                       <div className="flex items-center gap-2 text-sm pt-1">
                         <span className="font-medium text-slate-700 w-16">Fitness:</span>
                         <div className="flex-grow h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full ${parseInt(athlete.conditioning) >= 8 ? 'bg-green-500' : parseInt(athlete.conditioning) >= 5 ? 'bg-yellow-500' : 'bg-red-500'}`} 
+                          <div
+                            className={`h-full rounded-full ${parseInt(athlete.conditioning) >= 8 ? 'bg-green-500' : parseInt(athlete.conditioning) >= 5 ? 'bg-yellow-500' : 'bg-red-500'}`}
                             style={{ width: `${(parseInt(athlete.conditioning) / 10) * 100}%` }}
                           ></div>
                         </div>
@@ -350,11 +376,11 @@ export default function App() {
       {selectedAthlete && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
-            
+
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
               <h2 className="text-xl font-bold text-slate-800">Athlete Profile</h2>
-              <button 
+              <button
                 onClick={() => setSelectedAthlete(null)}
                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
               >
@@ -365,7 +391,7 @@ export default function App() {
             {/* Modal Body (Scrollable) */}
             <div className="overflow-y-auto p-6 md:p-8">
               <div className="flex flex-col md:flex-row gap-8">
-                
+
                 {/* Left Column: Photo & Core Stats */}
                 <div className="w-full md:w-1/3 space-y-6">
                   <div className="aspect-[3/4] rounded-xl overflow-hidden bg-slate-100 shadow-sm border border-slate-200">
@@ -377,7 +403,7 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="bg-gray-50 p-4 rounded border border-gray-200">
                     <h3 className="text-2xl font-black text-[#0A192F] mb-1 uppercase">{selectedAthlete.name}</h3>
                     <div className="inline-flex px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-bold uppercase tracking-wider mb-4">
@@ -393,7 +419,7 @@ export default function App() {
                       <p><span className="text-gray-500 font-bold">Height:</span> <span className="font-medium text-gray-900">{selectedAthlete.height}</span></p>
                     </div>
                   </div>
-                  
+
                   {selectedAthlete.hasMedicalIssue && (
                     <div className="bg-red-50 p-4 rounded border border-red-200 mt-4">
                       <h4 className="text-red-800 font-bold flex items-center gap-2 mb-1">
@@ -407,12 +433,12 @@ export default function App() {
 
                 {/* Right Column: Detailed Fields */}
                 <div className="w-full md:w-2/3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-8">
-                  
+
                   {/* Athletic Details */}
                   <div className="col-span-full">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2 mb-4">Athletic Profile</h4>
                   </div>
-                  
+
                   <div>
                     <p className="text-sm text-slate-500 mb-1">Primary Event</p>
                     <p className="font-medium text-slate-800">{selectedAthlete.event}</p>
@@ -429,7 +455,7 @@ export default function App() {
                     <p className="text-sm text-slate-500 mb-1">Personal Best</p>
                     <p className="font-medium text-blue-700 bg-blue-50 px-2 py-1 rounded inline-block">{selectedAthlete.pb}</p>
                   </div>
-                  
+
                   {/* Training & Logistics */}
                   <div className="col-span-full mt-4">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2 mb-4">Training & Logistics</h4>
@@ -462,8 +488,8 @@ export default function App() {
                     <div className="flex items-center gap-3">
                       <span className="font-bold text-lg text-slate-800">{selectedAthlete.conditioning}/10</span>
                       <div className="flex-grow max-w-[100px] h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full ${parseInt(selectedAthlete.conditioning) >= 8 ? 'bg-green-500' : parseInt(selectedAthlete.conditioning) >= 5 ? 'bg-yellow-500' : 'bg-red-500'}`} 
+                        <div
+                          className={`h-full rounded-full ${parseInt(selectedAthlete.conditioning) >= 8 ? 'bg-green-500' : parseInt(selectedAthlete.conditioning) >= 5 ? 'bg-yellow-500' : 'bg-red-500'}`}
                           style={{ width: `${(parseInt(selectedAthlete.conditioning) / 10) * 100}%` }}
                         ></div>
                       </div>
@@ -473,7 +499,7 @@ export default function App() {
                     <p className="text-sm text-slate-500 mb-1">Competition Frequency</p>
                     <p className="font-medium text-slate-800">{selectedAthlete.frequency}</p>
                   </div>
-                  
+
                   <div className="col-span-full bg-orange-50 p-4 rounded-xl border border-orange-100">
                     <p className="text-sm text-orange-800 font-semibold mb-1">Specific Support Requirements</p>
                     <p className="text-orange-900">{selectedAthlete.support}</p>
